@@ -1,0 +1,68 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+    id 'org.jetbrains.kotlin.plugin.compose'
+}
+
+android {
+    namespace 'com.suiting.podcast'
+    compileSdk 36
+    buildToolsVersion '35.0.0'
+    defaultConfig {
+        applicationId 'com.suiting.podcast'
+        minSdk 26
+        targetSdk 36
+        versionCode 6
+        versionName '0.1.5'
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+    }
+    buildFeatures { compose true; buildConfig true }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions { jvmTarget = '17' }
+    signingConfigs { debug { storeFile rootProject.file('.tooling/android-user-home/debug.keystore') } }
+    buildTypes {
+        release { minifyEnabled false }
+    }
+    testOptions {
+        unitTests.returnDefaultValues = true
+        unitTests.all {
+            systemProperty 'java.io.tmpdir', rootProject.file('.tooling/tmp').absolutePath
+            systemProperty 'edge.smoke', System.getenv('SUITING_EDGE_SMOKE') ?: '0'
+            inputs.property 'edge.smoke', System.getenv('SUITING_EDGE_SMOKE') ?: '0'
+            systemProperty 'import.smoke', System.getenv('SUITING_IMPORT_SMOKE') ?: '0'
+            inputs.property 'import.smoke', System.getenv('SUITING_IMPORT_SMOKE') ?: '0'
+        }
+    }
+    packaging { resources.excludes += ['/META-INF/{AL2.0,LGPL2.1}'] }
+}
+
+dependencies {
+    implementation platform('androidx.compose:compose-bom:2025.04.01')
+    implementation 'androidx.activity:activity-compose:1.10.1'
+    implementation 'androidx.compose.material3:material3'
+    implementation 'androidx.lifecycle:lifecycle-runtime-compose:2.9.2'
+    implementation 'androidx.media3:media3-exoplayer:1.8.0'
+    implementation 'androidx.media3:media3-session:1.8.0'
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2'
+    implementation 'org.jsoup:jsoup:1.18.3'
+    implementation 'com.tom-roush:pdfbox-android:2.0.27.0'
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.json:json:20240303'
+    testImplementation 'org.mockito:mockito-core:5.8.0'
+    testImplementation 'com.squareup.okhttp3:mockwebserver:4.12.0'
+    testImplementation 'com.squareup.okhttp3:okhttp-tls:4.12.0'
+}
+
+configurations { pdfTestAssets }
+dependencies { pdfTestAssets 'com.tom-roush:pdfbox-android:2.0.27.0@aar' }
+def preparePdfTestAssets = tasks.register('preparePdfTestAssets', Copy) {
+    from { zipTree(configurations.pdfTestAssets.singleFile) }
+    include 'assets/**'
+    into layout.buildDirectory.dir('pdf-test-assets')
+}
+android.sourceSets.test.resources.srcDir(layout.buildDirectory.dir('pdf-test-assets'))
+tasks.matching { it.name == 'processDebugUnitTestJavaRes' }.configureEach { dependsOn preparePdfTestAssets }

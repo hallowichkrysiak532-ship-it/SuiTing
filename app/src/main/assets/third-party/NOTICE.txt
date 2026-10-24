@@ -1,0 +1,5 @@
+EdgeToken.kt is adapted from rany2/edge-tts (LGPL-3.0).
+Copyright (c) 2025- rany <rany@riseup.net>.
+Upstream source: https://github.com/rany2/edge-tts/blob/master/src/edge_tts/drm.py
+Source SHA: 707dc7724b63242624b9b62175556fa1fdcb7fad
+The modified Kotlin source and original Python reference are provided with this project.

@@ -1,0 +1,17 @@
+.tooling/
+.gradle/
+.kotlin/
+**/build/
+local.properties
+*.iml
+.idea/
+captures/
+dist/
+artifacts/
+*.apk
+*.keystore
+*.jks
+*.hprof
+*.log
+.env
+.env.*
