@@ -14,15 +14,15 @@ import kotlinx.coroutines.sync.withLock
 import org.json.JSONObject
 import java.io.File
 
-data class ImportDraft(val title: String = "", val text: String = "", val source: String = "", val notice: String = "", val originalText: String = "") {
-    fun encode(): String = JSONObject().put("title", title).put("text", text).put("source", source).put("notice", notice).put("originalText", originalText).toString()
+data class ImportDraft(val title: String = "", val text: String = "", val source: String = "", val notice: String = "", val originalText: String = "", val coverUrl: String = "", val coverStyle: Int = -1) {
+    fun encode(): String = JSONObject().put("title", title).put("text", text).put("source", source).put("notice", notice).put("originalText", originalText).put("coverUrl",coverUrl).put("coverStyle",coverStyle).toString()
     companion object {
-        fun decode(raw: String): ImportDraft = JSONObject(raw).let { ImportDraft(it.optString("title"), it.optString("text"), it.optString("source"), it.optString("notice"), it.optString("originalText")) }
+        fun decode(raw: String): ImportDraft = JSONObject(raw).let { ImportDraft(it.optString("title"), it.optString("text"), it.optString("source"), it.optString("notice"), it.optString("originalText"),it.optString("coverUrl"),it.optInt("coverStyle",-1).coerceIn(-1,7)) }
         fun imported(value: ImportedText, previousTitle: String = ""): ImportDraft {
             val cleaned = ManuscriptCleaner.clean(value.text)
             // A shared URL is still needed to open the article, even though it is not narration.
             val body = cleaned.text.takeIf { it.any { c -> c.isLetterOrDigit() } } ?: value.text
-            return ImportDraft(value.title.ifBlank { previousTitle }, body, value.source, value.notice + "\n" + cleaned.summary, value.text)
+            return ImportDraft(value.title.ifBlank { previousTitle }, body, value.source, value.notice + "\n" + cleaned.summary, value.text,value.coverUrl)
         }
     }
 }
@@ -53,6 +53,7 @@ class ImportDraftModel(application: Application) : AndroidViewModel(application)
     fun close() { show.value = false }
     fun title(value: String) = change(mutable.value.copy(title = value.take(100)))
     fun text(value: String) = change(mutable.value.copy(text = value))
+    fun cover(style: Int) = change(mutable.value.copy(coverStyle=style.coerceIn(-1,7)))
     fun clear() { importJob?.cancel(); pending.value = null; error.value = ""; change(ImportDraft()); show.value = false }
     fun sample(text: String) { change(ImportDraft("给耳朵的一封信", text, notice = "示例正文")); open() }
     private fun change(value: ImportDraft) {

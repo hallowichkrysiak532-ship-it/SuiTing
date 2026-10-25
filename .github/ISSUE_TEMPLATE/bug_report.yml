@@ -1,0 +1,30 @@
+name: 问题反馈
+description: 报告安装、导入、生成、播放或界面问题。
+title: "[问题] "
+body:
+  - type: input
+    id: app_version
+    attributes:
+      label: 随听版本
+      placeholder: 例如 0.2.1
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: 设备与系统版本
+      placeholder: 例如华为 Mate 60 Pro，系统版本……
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤、预期结果与实际结果
+      description: 请尽量提供可以重复的操作步骤；如仅在后台或锁屏时发生，也请说明。
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: 截图或补充信息
+      description: 可附音色、导入方式、错误提示或诊断信息；请遮住私人文章、账号、令牌及其他个人信息。

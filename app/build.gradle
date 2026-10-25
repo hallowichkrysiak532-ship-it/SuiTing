@@ -12,9 +12,9 @@ android {
         applicationId 'com.suiting.podcast'
         minSdk 26
         targetSdk 36
-        versionCode 6
-        versionName '0.1.5'
-        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+        versionCode 11
+        versionName '0.2.1'
+        testInstrumentationRunner 'com.suiting.podcast.UiSmoke'
     }
     buildFeatures { compose true; buildConfig true }
     compileOptions {
@@ -22,7 +22,13 @@ android {
         targetCompatibility JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = '17' }
-    signingConfigs { debug { storeFile rootProject.file('.tooling/android-user-home/debug.keystore') } }
+    signingConfigs {
+        debug {
+            // Use the maintainer's existing key for upgrades; fresh checkouts use Android's default debug key.
+            def localKey = rootProject.file('.tooling/android-user-home/debug.keystore')
+            if (localKey.exists()) storeFile localKey
+        }
+    }
     buildTypes {
         release { minifyEnabled false }
     }
@@ -36,7 +42,9 @@ android {
             inputs.property 'import.smoke', System.getenv('SUITING_IMPORT_SMOKE') ?: '0'
         }
     }
-    packaging { resources.excludes += ['/META-INF/{AL2.0,LGPL2.1}'] }
+    packaging {
+        resources.excludes += ['/META-INF/{AL2.0,LGPL2.1}']
+    }
 }
 
 dependencies {

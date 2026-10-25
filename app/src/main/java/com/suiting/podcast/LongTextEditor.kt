@@ -26,13 +26,15 @@ private class BodyEditText(context: Context) : EditText(context) { var updating 
             importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
             gravity = Gravity.TOP or Gravity.START
-            textSize = 16f; minLines = 6; maxLines = 10
+            textSize = 15f; minLines = 6; maxLines = 10
+            contentDescription = "正文内容"
             setHorizontallyScrolling(false)
             hint = "粘贴正文，或从网页 / PDF 导入"
-            setTextColor(Color.rgb(25, 62, 53)); setHintTextColor(Color.GRAY)
+            setTextColor(Color.rgb(27, 36, 37)); setHintTextColor(Color.rgb(125, 130, 126))
             val density = resources.displayMetrics.density
             setPadding((12 * density).toInt(), (12 * density).toInt(), (12 * density).toInt(), (12 * density).toInt())
-            background = GradientDrawable().apply { setColor(Color.WHITE); cornerRadius = 8 * density; setStroke(density.toInt().coerceAtLeast(1), Color.GRAY) }
+            setLineSpacing(4 * density, 1.05f)
+            background = GradientDrawable().apply { setColor(Color.WHITE); cornerRadius = 12 * density; setStroke(density.toInt().coerceAtLeast(1), Color.rgb(228, 230, 224)) }
             filters = emptyArray()
             addTextChangedListener(object : TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}

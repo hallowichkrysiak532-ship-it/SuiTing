@@ -34,7 +34,11 @@ object BrowserArticle {
             if (!root && location.hostname !== 'mp.weixin.qq.com') root = document.body;
             var text = root ? (root.innerText || root.textContent || '') : '';
             var title = document.getElementById('activity-name');
-            return JSON.stringify({title: title ? title.innerText : document.title, text: text.slice(0,100001), length: text.length, url: location.href});
+            var cover = '';
+            var selectors = ['meta[property="og:image:secure_url"]','meta[property="og:image"]','meta[property="og:image:url"]','meta[name="twitter:image"]','meta[property="twitter:image"]','meta[name="twitter:image:src"]','link[rel="image_src"]'];
+            for (var i=0;i<selectors.length;i++) { var meta=document.querySelector(selectors[i]); if(meta) { cover=meta.content || meta.href || ''; if(cover) break; } }
+            if(!cover && location.hostname==='mp.weixin.qq.com') cover=window.msg_cdn_url || window.cdn_url || '';
+            return JSON.stringify({title: title ? title.innerText : document.title, text: text.slice(0,100001), length: text.length, url: location.href, coverUrl: cover});
         })();
     """.trimIndent()
     val probeScript = """
@@ -52,7 +56,7 @@ object BrowserArticle {
         val text = ImportLimits.checked(data.optString("text"))
         require(text.count { it.isLetterOrDigit() } >= 12) { "未找到文章正文。请先完成页面验证，并确认已看到正文后重试。" }
         return ImportedText(data.optString("title").trim().take(100), text, ArticleHtml.url(data.getString("url")).toString(),
-            "从当前页面提取了 " + text.length + " 字符；请检查分段，正文可继续编辑。")
+            "从当前页面提取了 " + text.length + " 字符；请检查分段，正文可继续编辑。", ArticleArtwork.normalize(data.optString("coverUrl"),data.getString("url")))
     }
 }
 

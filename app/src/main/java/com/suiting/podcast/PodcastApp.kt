@@ -11,7 +11,20 @@ import java.io.File
 class PodcastApp : Application() {
     lateinit var library: Library
     private val tasks = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
-    override fun onCreate() { super.onCreate(); library = Library(this) }
+    override fun onCreate() {
+        super.onCreate()
+        library = Library(this)
+        // Remove retired model data after an in-place upgrade; saved episodes and audio remain intact.
+        tasks.launch(Dispatchers.IO) {
+            val root = File(filesDir, "speech-models").canonicalFile
+            listOf("kokoro-multi-lang-v1_1", "kokoro-installing", "kokoro.tar.bz2.part").forEach { name ->
+                runCatching {
+                    val target = File(root, name).canonicalFile
+                    if (target.toPath().startsWith(root.toPath()) && target != root) target.deleteRecursively()
+                }
+            }
+        }
+    }
     fun deleteEpisode(id: String) {
         library.beginDelete(id)
         tasks.launch {
@@ -66,7 +79,10 @@ class Library internal constructor(private val base: File, private val store: Sn
         require(index >= 0)
         return File(File(base, id), "%04d.audio".format(index))
     }
-    fun readyCount(e: Episode): Int = e.segments.indices.takeWhile { file(e.id, it).let { f -> f.exists() && f.length() > 0 } }.count()
+    // Parallel downloads may finish out of order. Only expose the validated, contiguous prefix.
+    fun audioFile(e: Episode, index: Int): File = file(e.id, e.segments[index].audioIndex ?: index)
+    fun isReady(e: Episode, index: Int): Boolean = e.segments[index].durationMs > 0 && audioFile(e, index).let { it.isFile && it.length() > 0 }
+    fun readyCount(e: Episode): Int = e.segments.indices.takeWhile { isReady(e, it) }.count()
     fun audioBytes(): Long = base.walkTopDown().filter { it.isFile && it.extension in setOf("audio", "part", "request") }.sumOf { it.length() }
     fun episodeBytes(id: String): Long = File(base, id).walkTopDown().filter { it.isFile }.sumOf { it.length() }
     fun find(id: String): Episode? = mutable.value.find { it.id == id }

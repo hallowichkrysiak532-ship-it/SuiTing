@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.SuiTing" parent="Base.Theme.SuiTing">
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:navigationBarColor">#FAF9F5</item>
+    </style>
+</resources>

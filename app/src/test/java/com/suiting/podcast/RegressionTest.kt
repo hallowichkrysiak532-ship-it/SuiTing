@@ -74,6 +74,60 @@ class RegressionTest {
         override fun read() = raw
         override fun write(raw: String) { check(!failWrites) { "disk full" }; this.raw = raw }
     }
+    @Test fun retiredVoiceResumesWithEdgeWithoutDiscardingSavedAudioOrPosition() {
+        val store = MemorySnapshot()
+        val library = Library(temporary.newFolder(), store)
+        val e = Episode(title = "历史节目", voice = "kokoro-zh-female", segments = listOf(Segment("已保存", 3000), Segment("待生成")), positionMs = 1200)
+        library.add(e)
+        library.file(e.id, 0).apply { parentFile!!.mkdirs(); writeBytes(ByteArray(512)) }
+        library.update(e.id) { it.copy(voice = generationVoice(it.voice), status = "generating") }
+        val migrated = library.find(e.id)!!
+        assertEquals("zh-CN-XiaoxiaoNeural", migrated.voice)
+        assertEquals(1200L, migrated.positionMs)
+        assertEquals(e.segments, migrated.segments)
+        assertEquals(1, library.readyCount(migrated))
+        assertEquals("system", generationVoice("system"))
+        assertEquals("zh-CN-YunxiNeural", generationVoice("zh-CN-YunxiNeural"))
+    }
+    @Test fun sharedAudioClipsKeepParagraphProgressAcrossReload() {
+        val store = MemorySnapshot()
+        val base = temporary.newFolder()
+        val library = Library(base, store)
+        val e = Episode(title = "合并短段", voice = "zh-CN-XiaoxiaoNeural", segments = listOf(
+            Segment("第一段", 1000, 0, 0, 1000), Segment("第二段", 2000, 0, 1000, 3000)))
+        library.add(e)
+        library.file(e.id, 0).apply { parentFile!!.mkdirs(); writeBytes(ByteArray(512)) }
+        assertEquals(2, library.readyCount(e))
+        assertEquals(library.audioFile(e, 0), library.audioFile(e, 1))
+        assertFalse(library.file(e.id, 1).exists())
+        library.progress(e.id, 1, 1500)
+        val restored = Library(base, store)
+        val loaded = restored.find(e.id)!!
+        assertEquals(e.segments, loaded.segments)
+        assertEquals(1, loaded.segmentIndex)
+        assertEquals(1500L, loaded.positionMs)
+        assertEquals(2, restored.readyCount(loaded))
+        restored.beginDelete(e.id); restored.delete(e.id)
+        assertEquals(0L, restored.audioBytes())
+    }
+    @Test fun parallelDownloadsOnlyExposeTheValidatedContiguousPrefix() {
+        val library = Library(temporary.newFolder(), MemorySnapshot())
+        val e = Episode(title = "Downloading", voice = "system", segments = listOf(Segment("一"), Segment("二"), Segment("三")))
+        library.add(e)
+        fun save(index: Int) { library.file(e.id, index).apply { parentFile!!.mkdirs(); writeBytes(ByteArray(256)) } }
+        save(1)
+        library.update(e.id) { it.copy(segments = listOf(Segment("一"), Segment("二", 2000), Segment("三"))) }
+        assertEquals(0, library.readyCount(library.find(e.id)!!))
+        save(0)
+        // A renamed file must not become playable until duration validation completes.
+        assertEquals(0, library.readyCount(library.find(e.id)!!))
+        library.update(e.id) { it.copy(segments = listOf(Segment("一", 1000), Segment("二", 2000), Segment("三"))) }
+        assertEquals(2, library.readyCount(library.find(e.id)!!))
+        save(2)
+        assertEquals(2, library.readyCount(library.find(e.id)!!))
+        library.update(e.id) { it.copy(segments = it.segments.map { s -> s.copy(durationMs = 1000) }) }
+        assertEquals(3, library.readyCount(library.find(e.id)!!))
+    }
     @Test fun deleteRemovesFailedEpisodeAudioAndTemporaryFilesAndSurvivesReload() {
         val store = MemorySnapshot()
         val base = temporary.newFolder()

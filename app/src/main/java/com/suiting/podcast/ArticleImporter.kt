@@ -20,7 +20,7 @@ import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
-data class ImportedText(val title: String, val text: String, val source: String, val notice: String = "")
+data class ImportedText(val title: String, val text: String, val source: String, val notice: String = "", val coverUrl: String = "")
 
 object ImportLimits {
     const val HTML_BYTES = 4 * 1024 * 1024
@@ -58,6 +58,7 @@ object ArticleHtml {
     fun looksLikeLink(raw: String): Boolean = raw.trim().let { it.startsWith("https://", true) || it.startsWith("http://", true) }
     fun extract(bytes: ByteArray, address: String, charset: String? = null): ImportedText {
         val document = Jsoup.parse(ByteArrayInputStream(bytes), charset, address)
+        val cover = ArticleArtwork.extract(document, address)
         val title = document.selectFirst("#activity-name, .rich_media_title")?.text()?.trim().orEmpty()
             .ifBlank { document.selectFirst("meta[property=og:title]")?.attr("content").orEmpty() }
             .ifBlank { document.title() }.trim()
@@ -75,7 +76,7 @@ object ArticleHtml {
             "网页未返回可读取正文，可能需要登录或验证。可点“打开页面提取”，或复制正文/选择文件导入。"
         }
         return ImportedText(title.take(100), ImportLimits.checked(text), address,
-            "已提取正文 " + text.length + " 字符；不包含图片中的文字、视频和评论。请预览检查。")
+            "已提取正文 " + text.length + " 字符；不包含图片中的文字、视频和评论。请预览检查。", cover)
     }
     internal fun blocks(root: Element): String {
         val out = StringBuilder()

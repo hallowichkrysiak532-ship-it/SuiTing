@@ -26,7 +26,8 @@ class PlaybackService : MediaSessionService() {
                     save(oldPosition.mediaItem?.mediaId, oldPosition.positionMs)
                     persist()
                 }
-                override fun onPlaybackStateChanged(playbackState: Int) { persist() }
+                override fun onPlaybackStateChanged(playbackState: Int) { syncQueue(); persist() }
+                override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?, reason: Int) { syncQueue() }
             })
         }
         session = MediaSession.Builder(this, player).setCallback(object : MediaSession.Callback {
@@ -37,7 +38,15 @@ class PlaybackService : MediaSessionService() {
                 else MediaSession.ConnectionResult.reject()
             }
         }).build()
+        scope.launch {
+            library.episodes.collect { syncQueue() }
+        }
         scope.launch { while (isActive) { delay(2000); if (player.isPlaying) persist() } }
+    }
+    private fun syncQueue() {
+        val id = player.currentMediaItem?.mediaId?.substringBefore(':') ?: return
+        val episode = library.find(id)?.takeIf { it.status != "deleting" } ?: return
+        appendReadyAudio(player, episode.id, library.readyCount(episode)) { episodeMediaItem(library, episode, it) }
     }
     private fun save(mediaId: String?, position: Long) {
         val parts = mediaId?.split(":") ?: return

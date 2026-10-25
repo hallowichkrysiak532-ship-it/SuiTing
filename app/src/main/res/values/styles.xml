@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Base.Theme.SuiTing" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:statusBarColor">#FAF9F5</item>
+        <item name="android:navigationBarColor">#193E35</item>
+        <item name="android:windowBackground">#FAF9F5</item>
+        <item name="android:colorAccent">#193E35</item>
+    </style>
+    <style name="Theme.SuiTing" parent="Base.Theme.SuiTing" />
+</resources>

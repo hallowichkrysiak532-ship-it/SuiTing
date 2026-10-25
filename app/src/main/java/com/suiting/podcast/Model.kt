@@ -4,7 +4,13 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
 
-data class Segment(val text: String, val durationMs: Long = 0)
+data class Segment(
+    val text: String,
+    val durationMs: Long = 0,
+    val audioIndex: Int? = null,
+    val startMs: Long = 0,
+    val endMs: Long? = null
+)
 
 data class Episode(
     val id: String = UUID.randomUUID().toString(),
@@ -16,7 +22,10 @@ data class Episode(
     val error: String = "",
     val segmentIndex: Int = 0,
     val positionMs: Long = 0,
-    val sourceText: String = ""
+    val sourceText: String = "",
+    val sourceUrl: String = "",
+    val coverUrl: String = "",
+    val coverStyle: Int = -1
 )
 
 object TextSegments {
@@ -106,7 +115,9 @@ object EpisodeCodec {
             put("id", e.id); put("title", e.title); put("voice", e.voice); put("createdAt", e.createdAt)
             put("status", e.status); put("error", e.error); put("segmentIndex", e.segmentIndex); put("positionMs", e.positionMs)
             put("sourceText", e.sourceText)
-            put("segments", JSONArray().apply { e.segments.forEach { s -> put(JSONObject().put("text", s.text).put("durationMs", s.durationMs)) } })
+            put("sourceUrl", e.sourceUrl); put("coverUrl", e.coverUrl); put("coverStyle", e.coverStyle)
+            put("segments", JSONArray().apply { e.segments.forEach { s -> put(JSONObject().put("text", s.text).put("durationMs", s.durationMs)
+                .put("audioIndex", s.audioIndex).put("startMs", s.startMs).put("endMs", s.endMs)) } })
         }) }
     }.toString(2)
 
@@ -117,10 +128,16 @@ object EpisodeCodec {
             val id = o.getString("id")
             require(id.matches(Regex("[a-fA-F0-9-]{36}"))) { "节目编号无效" }
             val parts = o.getJSONArray("segments")
-            val segments = (0 until parts.length()).map { i -> parts.getJSONObject(i).let { Segment(it.getString("text"), it.optLong("durationMs").coerceAtLeast(0)) } }
+            val segments = (0 until parts.length()).map { i -> parts.getJSONObject(i).let {
+                val audioIndex = if (it.isNull("audioIndex")) null else it.getInt("audioIndex").also { n -> require(n in 0 until parts.length()) }
+                val start = it.optLong("startMs").coerceAtLeast(0)
+                val end = if (it.isNull("endMs")) null else it.getLong("endMs").also { n -> require(n > start) }
+                Segment(it.getString("text"), it.optLong("durationMs").coerceAtLeast(0), audioIndex, start, end)
+            } }
             require(segments.isNotEmpty())
             Episode(id, o.getString("title"), o.getString("voice"), segments, o.getLong("createdAt"), o.optString("status", "draft"),
-                o.optString("error"), o.optInt("segmentIndex").coerceIn(0, segments.lastIndex), o.optLong("positionMs").coerceAtLeast(0), o.optString("sourceText"))
+                o.optString("error"), o.optInt("segmentIndex").coerceIn(0, segments.lastIndex), o.optLong("positionMs").coerceAtLeast(0), o.optString("sourceText"),
+                o.optString("sourceUrl"), o.optString("coverUrl"), o.optInt("coverStyle", -1).coerceIn(-1, 7))
         }
     }
 }

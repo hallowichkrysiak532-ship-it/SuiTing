@@ -21,6 +21,11 @@ import kotlin.coroutines.resumeWithException
 
 interface SpeechEngine { suspend fun synthesize(text: String, voice: String, file: File); fun close() {} }
 
+// Retired voices can resume unfinished episodes with Edge while preserving saved audio.
+internal fun generationVoice(voice: String): String = voice.takeIf { it in EdgeSpeechEngine.voices } ?: "zh-CN-XiaoxiaoNeural"
+internal fun speechEngine(context: Context, voice: String): SpeechEngine =
+    if (voice == "system") SystemSpeechEngine(context) else EdgeSpeechEngine()
+
 class EdgeSpeechEngine : SpeechEngine {
     private val client = OkHttpClient.Builder().connectTimeout(15, TimeUnit.SECONDS).readTimeout(65, TimeUnit.SECONDS).build()
     private var clockOffset = 0L
@@ -72,10 +77,19 @@ class EdgeSpeechEngine : SpeechEngine {
         } finally { assembled.delete(); piece.delete(); File(piece.path + ".part").delete() }
     }
 
-    private suspend fun requestWithRetry(text: String, voice: String, file: File) {
+    internal suspend fun synthesizeBatch(texts: List<String>, voice: String, file: File): List<EdgeWord> {
+        val text = texts.joinToString("\n") { SpeechText.clean(it) }
+        require(SpeechText.requests(text).size == 1)
+        val words = mutableListOf<EdgeWord>()
+        requestWithRetry(text, voice, file, words)
+        return words
+    }
+
+    private suspend fun requestWithRetry(text: String, voice: String, file: File, words: MutableList<EdgeWord>? = null) {
         for (attempt in 0..2) {
             try {
-                try { withTimeout(75_000) { request(text, voice, file) } }
+                words?.clear()
+                try { withTimeout(75_000) { request(text, voice, file, words) } }
                 catch (e: TimeoutCancellationException) { currentCoroutineContext().ensureActive(); throw IOException("语音请求超时", e) }
                 return
             } catch (e: IOException) {
@@ -88,7 +102,7 @@ class EdgeSpeechEngine : SpeechEngine {
     }
     private class EdgeClockError(val serverTime: Long?) : IOException("服务拒绝连接（HTTP 403）")
 
-    private suspend fun request(text: String, voice: String, file: File) = withContext(Dispatchers.IO) {
+    private suspend fun request(text: String, voice: String, file: File, words: MutableList<EdgeWord>? = null) = withContext(Dispatchers.IO) {
         file.parentFile!!.mkdirs()
         val temporary = File(file.path + ".part")
         suspendCancellableCoroutine<Unit> { cont ->
@@ -120,7 +134,7 @@ class EdgeSpeechEngine : SpeechEngine {
             val socket = client.newWebSocket(request, object : WebSocketListener() {
                 override fun onOpen(webSocket: WebSocket, response: Response) {
                     response.headers.getDate("Date")?.let { clockOffset = it.time - System.currentTimeMillis() }
-                    val config = "{\"context\":{\"synthesis\":{\"audio\":{\"metadataoptions\":{\"sentenceBoundaryEnabled\":\"true\",\"wordBoundaryEnabled\":\"false\"},\"outputFormat\":\"audio-24khz-48kbitrate-mono-mp3\"}}}}"
+                    val config = "{\"context\":{\"synthesis\":{\"audio\":{\"metadataoptions\":{\"sentenceBoundaryEnabled\":\"${words == null}\",\"wordBoundaryEnabled\":\"${words != null}\"},\"outputFormat\":\"audio-24khz-48kbitrate-mono-mp3\"}}}}"
                     try {
                         check(webSocket.send("X-Timestamp:" + timestamp() + "\r\nContent-Type:application/json; charset=utf-8\r\nPath:speech.config\r\n\r\n" + config + "\r\n"))
                         check(webSocket.send("X-RequestId:" + requestId + "\r\nContent-Type:application/ssml+xml\r\nX-Timestamp:" + timestamp() + "Z\r\nPath:ssml\r\n\r\n" + ssml(text, voice)))
@@ -140,6 +154,11 @@ class EdgeSpeechEngine : SpeechEngine {
                 override fun onMessage(webSocket: WebSocket, text: String) {
                     val headers = text.substringBefore("\r\n\r\n")
                     val path = headers.lineSequence().firstOrNull { it.startsWith("Path:", true) }?.substringAfter(':')?.trim()
+                    if (path == "audio.metadata" && words != null) {
+                        // Invalid/incomplete alignment disables batching, while retaining the normal synthesis fallback.
+                        synchronized(lock) { if (!done.get()) runCatching { words.addAll(EdgeBatches.parseMetadata(text.substringAfter("\r\n\r\n"))) } }
+                        return
+                    }
                     headers.lineSequence().firstOrNull { it.startsWith("X-StatusCode:", true) }?.let { serviceCode = it.take(80) }
                     if (path != "turn.end") return
                     synchronized(lock) {
